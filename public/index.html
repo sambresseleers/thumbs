@@ -1,27 +1,46 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Video Thumbnailer</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-<h1>🎞 Video Thumbnailer</h1>
+<h1>Video Thumbnailer</h1>
 
-<form id="form">
-  <input type="file" name="video" required />
-  <button>Generate</button>
-</form>
+<select id="files"></select>
+<button onclick="enqueue()">Add to queue</button>
 
-<img id="preview" />
+<div id="jobs"></div>
 
 <script>
-document.getElementById("form").onsubmit = async e => {
-  e.preventDefault();
-  const data = new FormData(e.target);
-  const res = await fetch("/generate", { method: "POST", body: data });
-  const json = await res.json();
-  document.getElementById("preview").src = json.preview;
-};
+async function loadFiles() {
+  const res = await fetch("/api/list");
+  const files = await res.json();
+  files.forEach(f => {
+    const o = document.createElement("option");
+    o.textContent = f;
+    document.getElementById("files").appendChild(o);
+  });
+}
+
+async function enqueue() {
+  const file = document.getElementById("files").value;
+  await fetch("/api/enqueue", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ file })
+  });
+}
+
+async function refreshJobs() {
+  const res = await fetch("/api/jobs");
+  const jobs = await res.json();
+  const div = document.getElementById("jobs");
+  div.innerHTML = "";
+  jobs.forEach(j => {
+    div.innerHTML += `
+      <div>
+        ${j.input} - ${j.status}
+        <progress value="${j.progress}" max="100"></progress>
+        ${j.status === "done" ? `<img src="${j.output.replace("/data","")}" width="300">` : ""}
+      </div>
+    `;
+  });
+}
+
+loadFiles();
+setInterval(refreshJobs, 1000);
 </script>
-</body>
-</html>
