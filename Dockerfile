@@ -1,15 +1,15 @@
 FROM node:20-bookworm
 
-# ---- Install FFmpeg + VAAPI ----
+# ---- Install FFmpeg + Intel VAAPI ----
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     vainfo \
-    intel-media-va-driver-non-free \
-    i965-va-driver \
+    intel-media-va-driver \
     libva-drm2 \
     libva-x11-2 \
     && rm -rf /var/lib/apt/lists/*
 
+# Force Intel iHD driver
 ENV LIBVA_DRIVER_NAME=iHD
 ENV NODE_ENV=production
 
@@ -22,16 +22,15 @@ RUN cd backend && npm install --omit=dev
 # ---- Frontend ----
 COPY public ./public
 
-# ---- Data volumes ----
-VOLUME /data
-
-# ---- Defaults (override in docker-compose) ----
+# ---- Runtime config (override in compose) ----
 ENV COLS=11
 ENV ROWS=10
 ENV WIDTH=3840
 ENV HEIGHT=2160
 ENV FONT_SIZE=30
 ENV BORDER=4
+
+VOLUME /data
 
 EXPOSE 3000
 
