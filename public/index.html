@@ -1,46 +1,56 @@
 <h1>Video Thumbnailer</h1>
 
-<select id="files"></select>
-<button onclick="enqueue()">Add to queue</button>
+<label for="folderPath">Folder path:</label>
+<input type="text" id="folderPath" value="/data" style="width:400px">
+<button onclick="loadFiles()">Load Videos</button>
 
+<h2>Videos in folder:</h2>
+<div id="fileList"></div>
+
+<h2>Job Queue:</h2>
 <div id="jobs"></div>
 
 <script>
 async function loadFiles() {
-  const res = await fetch("/api/list");
+  const folder = document.getElementById("folderPath").value;
+  const res = await fetch(`/api/list?dir=${encodeURIComponent(folder)}`);
   const files = await res.json();
+  const fileListDiv = document.getElementById("fileList");
+  fileListDiv.innerHTML = "";
+
   files.forEach(f => {
-    const o = document.createElement("option");
-    o.textContent = f;
-    document.getElementById("files").appendChild(o);
+    const fileDiv = document.createElement("div");
+    fileDiv.innerHTML = `
+      ${f} 
+      <button onclick="enqueue('${folder}','${f}')">Add to queue</button>
+    `;
+    fileListDiv.appendChild(fileDiv);
   });
 }
 
-async function enqueue() {
-  const file = document.getElementById("files").value;
+async function enqueue(folder, file) {
   await fetch("/api/enqueue", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ file })
+    body: JSON.stringify({ file: `${folder}/${file}` })
   });
 }
 
 async function refreshJobs() {
   const res = await fetch("/api/jobs");
   const jobs = await res.json();
-  const div = document.getElementById("jobs");
-  div.innerHTML = "";
+  const jobsDiv = document.getElementById("jobs");
+  jobsDiv.innerHTML = "";
   jobs.forEach(j => {
-    div.innerHTML += `
-      <div>
+    jobsDiv.innerHTML += `
+      <div style="margin-bottom:10px;">
         ${j.input} - ${j.status}
         <progress value="${j.progress}" max="100"></progress>
-        ${j.status === "done" ? `<img src="${j.output.replace("/data","")}" width="300">` : ""}
+        ${j.status === "done" ? `<br><img src="${j.output.replace("/data","")}" width="300">` : ""}
       </div>
     `;
   });
 }
 
-loadFiles();
 setInterval(refreshJobs, 1000);
 </script>
