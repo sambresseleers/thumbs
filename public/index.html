@@ -2,50 +2,24 @@
 
 <label for="folderPath">Folder path:</label>
 <input type="text" id="folderPath" value="/data" style="width:400px">
-<button onclick="loadFiles()">Load Videos</button>
-
-<h2>Videos in folder (select multiple):</h2>
-<div id="fileList"></div>
-<button onclick="enqueueSelected()">Add selected files to queue</button>
+<button onclick="enqueueFolder()">Load & Enqueue Videos</button>
 
 <h2>Job Queue:</h2>
 <div id="jobs"></div>
 
 <script>
-let selectedFiles = [];
-
-async function loadFiles() {
+async function enqueueFolder() {
   const folder = document.getElementById("folderPath").value;
   const res = await fetch(`/api/list?dir=${encodeURIComponent(folder)}`);
   const files = await res.json();
-  const fileListDiv = document.getElementById("fileList");
-  fileListDiv.innerHTML = "";
-  selectedFiles = [];
 
-  files.forEach(f => {
-    const fileDiv = document.createElement("div");
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.value = f;
-    checkbox.onchange = e => {
-      if(e.target.checked) selectedFiles.push(f);
-      else selectedFiles = selectedFiles.filter(x => x !== f);
-    };
-    fileDiv.appendChild(checkbox);
-    fileDiv.appendChild(document.createTextNode(" " + f));
-    fileListDiv.appendChild(fileDiv);
-  });
-}
-
-async function enqueueSelected() {
-  for (const f of selectedFiles) {
+  for (const f of files) {
     await fetch("/api/enqueue", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ file: f })
     });
   }
-  selectedFiles = [];
 }
 
 async function refreshJobs() {
@@ -53,6 +27,7 @@ async function refreshJobs() {
   const jobs = await res.json();
   const jobsDiv = document.getElementById("jobs");
   jobsDiv.innerHTML = "";
+
   jobs.forEach(j => {
     jobsDiv.innerHTML += `
       <div style="margin-bottom:10px;">
