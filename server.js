@@ -1,92 +1,57 @@
 const express = require('express');
 const fs = require('fs').promises;
-const fsExtra = require('fs-extra');
 const path = require('path');
 const cors = require('cors');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
 
-// Load environment variables with defaults
+// Configuration
 const config = {
   port: process.env.PORT || 3000,
   maxConcurrentJobs: parseInt(process.env.MAX_CONCURRENT_JOBS) || 1,
   thumbnailQuality: parseInt(process.env.THUMBNAIL_QUALITY) || 85,
-  outputFormat: process.env.OUTPUT_FORMAT || 'jpg',
-  textOverlay: {
-    enabled: process.env.TEXT_OVERLAY === 'true' || false,
-    text: process.env.TEXT_OVERLAY_TEXT || 'Thumbnail',
-    fontSize: parseInt(process.env.TEXT_OVERLAY_FONTSIZE) || 24,
-    fontColor: process.env.TEXT_OVERLAY_COLOR || 'white',
-    x: parseInt(process.env.TEXT_OVERLAY_X) || 10,
-    y: parseInt(process.env.TEXT_OVERLAY_Y) || 10
-  }
+  outputFormat: process.env.OUTPUT_FORMAT || 'jpg'
 };
 
-// Log configuration on startup
-console.log('Starting with configuration:', JSON.stringify(config, null, 2));
-
-// State management
+// Simple in-memory job queue
 class JobQueue {
   constructor() {
     this.queue = [];
     this.processing = false;
-    this.jobHistory = [];
-    this.loadJobs();
   }
 
-  async loadJobs() {
+  async addJob(filePath) {
+    // Check if thumbnail already exists before adding to queue
+    const thumbnailPath = getThumbnailPath(filePath);
     try {
-      const dataPath = path.join(__dirname, 'data', 'jobs.json');
-      if (await fsExtra.pathExists(dataPath)) {
-        const data = await fsExtra.readJson(dataPath);
-        this.queue = data.queue || [];
-        this.jobHistory = data.history || [];
-        console.log(`Loaded ${this.queue.length} queued jobs from storage`);
-      }
-    } catch (error) {
-      console.warn('Could not load job storage:', error.message);
+      await fs.access(thumbnailPath);
+      // Thumbnail exists, don't add to queue
+      console.log(`Skipping ${path.basename(filePath)} - thumbnail already exists`);
+      return null;
+    } catch {
+      // Thumbnail doesn't exist, add to queue
+      const job = {
+        id: Date.now() + Math.random().toString(36).substr(2, 9),
+        filePath,
+        fileName: path.basename(filePath),
+        status: 'queued',
+        addedAt: new Date().toISOString(),
+        startedAt: null,
+        completedAt: null,
+        error: null
+      };
+      
+      this.queue.push(job);
+      console.log(`Job added: ${job.fileName} (ID: ${job.id})`);
+      return job;
     }
-  }
-
-  async saveJobs() {
-    try {
-      const dataDir = path.join(__dirname, 'data');
-      await fsExtra.ensureDir(dataDir);
-      const dataPath = path.join(dataDir, 'jobs.json');
-      await fsExtra.writeJson(dataPath, {
-        queue: this.queue,
-        history: this.jobHistory.slice(-1000) // Keep last 1000 jobs
-      }, { spaces: 2 });
-    } catch (error) {
-      console.error('Failed to save jobs:', error);
-    }
-  }
-
-  addJob(filePath, options = {}) {
-    const job = {
-      id: Date.now() + Math.random().toString(36).substr(2, 9),
-      filePath,
-      fileName: path.basename(filePath),
-      status: 'queued',
-      addedAt: new Date().toISOString(),
-      startedAt: null,
-      completedAt: null,
-      error: null,
-      options: { ...config.textOverlay, ...options }
-    };
-    
-    this.queue.push(job);
-    this.saveJobs();
-    console.log(`Job added: ${job.fileName} (ID: ${job.id})`);
-    return job;
   }
 
   removeJob(jobId) {
     const index = this.queue.findIndex(job => job.id === jobId);
     if (index !== -1) {
       const removed = this.queue.splice(index, 1)[0];
-      this.saveJobs();
       console.log(`Job removed: ${removed.fileName}`);
       return removed;
     }
@@ -101,20 +66,7 @@ class JobQueue {
     const job = this.queue.find(j => j.id === jobId);
     if (job) {
       Object.assign(job, updates);
-      this.saveJobs();
     }
-  }
-
-  addToHistory(job) {
-    this.jobHistory.push({
-      ...job,
-      archivedAt: new Date().toISOString()
-    });
-    // Keep history manageable
-    if (this.jobHistory.length > 1000) {
-      this.jobHistory = this.jobHistory.slice(-1000);
-    }
-    this.saveJobs();
   }
 }
 
@@ -128,6 +80,12 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // Utility functions
+function getThumbnailPath(videoPath) {
+  const dir = path.dirname(videoPath);
+  const baseName = path.basename(videoPath, path.extname(videoPath));
+  return path.join(dir, `${baseName}_thumb.${config.outputFormat}`);
+}
+
 async function scanDirectory(dirPath, extensions = ['.ts', '.mp4', '.mov', '.avi']) {
   const files = [];
   
@@ -156,12 +114,6 @@ async function scanDirectory(dirPath, extensions = ['.ts', '.mp4', '.mov', '.avi
   return files;
 }
 
-function getThumbnailPath(videoPath) {
-  const dir = path.dirname(videoPath);
-  const baseName = path.basename(videoPath, path.extname(videoPath));
-  return path.join(dir, `${baseName}_thumb.${config.outputFormat}`);
-}
-
 async function fileExists(filePath) {
   try {
     await fs.access(filePath);
@@ -175,30 +127,19 @@ async function processVideoWithFFmpeg(job) {
   const inputPath = job.filePath;
   const outputPath = getThumbnailPath(inputPath);
   
-  // Check if thumbnail already exists
+  // Double-check thumbnail doesn't exist (in case it was created after queuing)
   if (await fileExists(outputPath)) {
     console.log(`Thumbnail already exists for ${job.fileName}, skipping`);
     return { skipped: true, outputPath };
   }
   
-  // Build FFmpeg command
-  let ffmpegCmd = `ffmpeg -i "${inputPath}" -vf `;
-  
-  // Add text overlay if enabled
-  if (job.options.enabled) {
-    const text = job.options.text.replace(/:/g, '\\:'); // Escape colons for FFmpeg
-    ffmpegCmd += `"drawtext=text='${text}':fontsize=${job.options.fontSize}:fontcolor=${job.options.fontColor}:x=${job.options.x}:y=${job.options.y}" `;
-  } else {
-    ffmpegCmd += `"thumbnail" `;
-  }
-  
-  // Capture thumbnail at 10% of video duration
-  ffmpegCmd += `-ss 10% -vframes 1 -q:v ${config.thumbnailQuality} "${outputPath}"`;
+  // Simple FFmpeg command - capture thumbnail at 10% of video
+  const ffmpegCmd = `ffmpeg -i "${inputPath}" -ss 10% -vframes 1 -q:v ${config.thumbnailQuality} "${outputPath}"`;
   
   console.log(`Processing ${job.fileName} with command:`, ffmpegCmd);
   
   try {
-    const { stdout, stderr } = await execAsync(ffmpegCmd, { timeout: 300000 }); // 5 minute timeout
+    const { stdout, stderr } = await execAsync(ffmpegCmd, { timeout: 300000 });
     
     if (stderr) {
       console.log(`FFmpeg output for ${job.fileName}:`, stderr);
@@ -233,19 +174,11 @@ async function processNextJob() {
   try {
     const result = await processVideoWithFFmpeg(job);
     
-    if (result.skipped) {
-      jobQueue.updateJobStatus(job.id, {
-        status: 'skipped',
-        completedAt: new Date().toISOString(),
-        outputPath: result.outputPath
-      });
-    } else {
-      jobQueue.updateJobStatus(job.id, {
-        status: 'completed',
-        completedAt: new Date().toISOString(),
-        outputPath: result.outputPath
-      });
-    }
+    jobQueue.updateJobStatus(job.id, {
+      status: result.skipped ? 'skipped' : 'completed',
+      completedAt: new Date().toISOString(),
+      outputPath: result.outputPath
+    });
     
     console.log(`Job completed: ${job.fileName} (${job.status})`);
   } catch (error) {
@@ -256,15 +189,10 @@ async function processNextJob() {
     });
     console.error(`Job failed: ${job.fileName} - ${error.message}`);
   } finally {
-    // Move to history
-    const completedJob = jobQueue.queue.find(j => j.id === job.id);
-    jobQueue.addToHistory(completedJob);
-    
-    // Remove from active queue
+    // Remove completed/error/skipped jobs from queue after processing
     const index = jobQueue.queue.findIndex(j => j.id === job.id);
     if (index !== -1) {
       jobQueue.queue.splice(index, 1);
-      jobQueue.saveJobs();
     }
     
     jobQueue.processing = false;
@@ -284,9 +212,7 @@ app.get('/api/queue', (req, res) => {
     stats: {
       total: jobQueue.queue.length,
       queued: jobQueue.queue.filter(j => j.status === 'queued').length,
-      processing: jobQueue.queue.filter(j => j.status === 'processing').length,
-      completed: jobQueue.jobHistory.filter(j => j.status === 'completed').length,
-      errors: jobQueue.jobHistory.filter(j => j.status === 'error').length
+      processing: jobQueue.queue.filter(j => j.status === 'processing').length
     }
   });
 });
@@ -296,22 +222,23 @@ app.post('/api/scan', async (req, res) => {
   try {
     const { folderPath } = req.body;
     
-    if (!folderPath || !await fileExists(folderPath)) {
-      return res.status(400).json({ error: 'Invalid folder path' });
+    if (!folderPath) {
+      return res.status(400).json({ error: 'Folder path required' });
     }
     
     console.log(`Scanning folder: ${folderPath}`);
     const videoFiles = await scanDirectory(folderPath);
     
-    // Filter out files that already have thumbnails
+    // Add files to queue (skipping those with existing thumbnails)
     const jobs = [];
+    let skipped = 0;
+    
     for (const file of videoFiles) {
-      const thumbnailPath = getThumbnailPath(file);
-      if (!await fileExists(thumbnailPath)) {
-        const job = jobQueue.addJob(file);
+      const job = await jobQueue.addJob(file);
+      if (job) {
         jobs.push(job);
       } else {
-        console.log(`Skipping ${path.basename(file)} - thumbnail exists`);
+        skipped++;
       }
     }
     
@@ -322,8 +249,9 @@ app.post('/api/scan', async (req, res) => {
     
     res.json({
       success: true,
-      message: `Found ${videoFiles.length} video files, added ${jobs.length} to queue`,
+      message: `Found ${videoFiles.length} video files, added ${jobs.length} to queue, skipped ${skipped}`,
       jobsAdded: jobs.length,
+      skipped: skipped,
       totalFiles: videoFiles.length
     });
     
@@ -334,21 +262,24 @@ app.post('/api/scan', async (req, res) => {
 });
 
 // Add single file to queue
-app.post('/api/add', (req, res) => {
+app.post('/api/add', async (req, res) => {
   try {
-    const { filePath, options } = req.body;
+    const { filePath } = req.body;
     
     if (!filePath) {
       return res.status(400).json({ error: 'File path required' });
     }
     
-    const job = jobQueue.addJob(filePath, options);
+    const job = await jobQueue.addJob(filePath);
     
-    if (!jobQueue.processing) {
-      setTimeout(() => processNextJob(), 100);
+    if (job) {
+      if (!jobQueue.processing) {
+        setTimeout(() => processNextJob(), 100);
+      }
+      res.json({ success: true, job, message: 'Job added to queue' });
+    } else {
+      res.json({ success: true, job: null, message: 'File already has thumbnail, skipped' });
     }
-    
-    res.json({ success: true, job });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -375,7 +306,6 @@ app.delete('/api/queue', (req, res) => {
   try {
     const count = jobQueue.queue.length;
     jobQueue.queue = [];
-    jobQueue.saveJobs();
     res.json({ success: true, message: `Cleared ${count} jobs` });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -427,7 +357,7 @@ app.post('/api/browse', async (req, res) => {
   }
 });
 
-// Get system info and FFmpeg status
+// Get system info
 app.get('/api/system', async (req, res) => {
   try {
     // Check if FFmpeg is available
@@ -447,8 +377,7 @@ app.get('/api/system', async (req, res) => {
       config: {
         maxConcurrentJobs: config.maxConcurrentJobs,
         thumbnailQuality: config.thumbnailQuality,
-        outputFormat: config.outputFormat,
-        textOverlay: config.textOverlay.enabled
+        outputFormat: config.outputFormat
       }
     });
   } catch (error) {
@@ -466,14 +395,9 @@ app.listen(config.port, () => {
 ║  🌐 Server URL: http://localhost:${config.port}              ║
 ║  📁 API Endpoint: http://localhost:${config.port}/api       ║
 ║  ⏱️  Queue Size: ${jobQueue.queue.length} jobs                 ║
-║  🐳 Docker Ready: ${process.env.NODE_ENV === 'production' ? 'Yes' : 'Development'} ║
+║  📊 Mode: Stateless (no persistence)                 ║
+║  🔍 Auto-skip: Files with existing thumbnails        ║
 ║                                                       ║
 ╚═══════════════════════════════════════════════════════╝
 `);
-  
-  // Start processing if there are queued jobs
-  if (jobQueue.queue.length > 0 && !jobQueue.processing) {
-    console.log('Resuming processing of queued jobs...');
-    setTimeout(() => processNextJob(), 1000);
-  }
 });
