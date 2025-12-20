@@ -13,6 +13,7 @@ ENV NODE_ENV=production
 
 WORKDIR /app
 
+COPY backend/package.json ./
 COPY backend ./backend
 COPY public ./public
 COPY package.json ./
