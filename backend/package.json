@@ -1,7 +1,7 @@
 {
   "name": "video-thumbnailer",
   "version": "1.0.0",
-  "main": "server.js",
+  "main": "backend/server.js",
   "type": "commonjs",
   "dependencies": {
     "express": "^4.19.2",

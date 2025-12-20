@@ -14,11 +14,7 @@ module.exports = function buildArgs(input, output, duration) {
       "-hwaccel_output_format", "vaapi",
       "-i", input,
       "-vf",
-      `fps=${fps},
-       scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=decrease,
-       pad=${WIDTH}:${HEIGHT}:(ow-iw)/2:(oh-ih)/2,
-       drawtext=text='%{pts\\:hms}':x=10:y=10:fontsize=${FONT}:fontcolor=white:box=1:boxcolor=black@0.6,
-       tile=${COLS}x${ROWS}:padding=${BORDER}:margin=${BORDER}`,
+      `fps=${fps},scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=decrease,pad=${WIDTH}:${HEIGHT}:(ow-iw)/2:(oh-ih)/2,drawtext=text='%{pts\\:hms}':x=10:y=10:fontsize=${FONT}:fontcolor=white:box=1:boxcolor=black@0.6,tile=${COLS}x${ROWS}:padding=${BORDER}:margin=${BORDER}`,
       "-frames:v", "1",
       "-q:v", "3",
       output

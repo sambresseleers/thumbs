@@ -1,6 +1,5 @@
 FROM node:20-bookworm
 
-# ---- Install FFmpeg + Intel VAAPI ----
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     vainfo \
@@ -9,20 +8,17 @@ RUN apt-get update && apt-get install -y \
     libva-x11-2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Force Intel iHD driver
 ENV LIBVA_DRIVER_NAME=iHD
 ENV NODE_ENV=production
 
 WORKDIR /app
 
-# ---- Backend ----
 COPY backend ./backend
-RUN cd backend && npm install --omit=dev
-
-# ---- Frontend ----
 COPY public ./public
+COPY package.json ./
 
-# ---- Runtime config (override in compose) ----
+RUN npm install --omit=dev
+
 ENV COLS=11
 ENV ROWS=10
 ENV WIDTH=3840
@@ -31,7 +27,6 @@ ENV FONT_SIZE=30
 ENV BORDER=4
 
 VOLUME /data
-
 EXPOSE 3000
 
 CMD ["node", "backend/server.js"]

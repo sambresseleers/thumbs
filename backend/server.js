@@ -11,15 +11,35 @@ app.use(express.static("/app/public"));
 
 const jobs = [];
 
+// Recursive file listing
+function getFilesRecursive(dir, exts = /\.(mp4|mkv|avi|mov|ts|webm)$/i) {
+  let results = [];
+  const list = fs.readdirSync(dir, { withFileTypes: true });
+  list.forEach(item => {
+    const fullPath = path.join(dir, item.name);
+    if (item.isDirectory()) {
+      results = results.concat(getFilesRecursive(fullPath, exts));
+    } else if (exts.test(item.name)) {
+      results.push(fullPath);
+    }
+  });
+  return results;
+}
+
+// List videos
 app.get("/api/list", (req, res) => {
   const dir = req.query.dir || "/data";
-  const files = fs.readdirSync(dir)
-    .filter(f => /\.(mp4|mkv|avi|mov|ts|webm)$/i.test(f));
-  res.json(files);
+  try {
+    const files = getFilesRecursive(dir);
+    res.json(files);
+  } catch (e) {
+    res.status(500).json({ error: e.toString() });
+  }
 });
 
+// Enqueue job
 app.post("/api/enqueue", (req, res) => {
-  const fullPath = path.join("/data", req.body.file);
+  const fullPath = req.body.file;
   const output = `${fullPath}.thumb.jpg`;
 
   if (fs.existsSync(output)) {
@@ -45,6 +65,7 @@ app.post("/api/enqueue", (req, res) => {
   res.json(job);
 });
 
+// Return job list
 app.get("/api/jobs", (req, res) => res.json(jobs));
 
 queue.on("update", job => {});

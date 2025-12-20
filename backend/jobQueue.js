@@ -1,7 +1,5 @@
 const EventEmitter = require("events");
 const { spawn } = require("child_process");
-const path = require("path");
-const fs = require("fs");
 
 class JobQueue extends EventEmitter {
   constructor() {
