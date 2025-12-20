@@ -6,15 +6,13 @@ services:
     container_name: video-thumbnailer
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "9999:3000"
     volumes:
       # Mount host video directories
       - ./data:/app/data:rw
       - ./logs:/app/logs:rw
       # Mount your video directories (adjust paths as needed)
-      - /path/to/your/videos:/videos:ro
-      # Mount output directory (optional)
-      - /path/to/output:/output:rw
+      - /mnt/user/media/ctbrec/proccessed:/videos:ro
     environment:
       - NODE_ENV=production
       - PORT=3000
