@@ -9,7 +9,9 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "../public")));
 
 let queue = [];
+let processing = false;
 
+// Recursive folder scan
 function scanFolderRecursive(dir) {
   let results = [];
   const list = fs.readdirSync(dir, { withFileTypes: true });
@@ -24,11 +26,16 @@ function scanFolderRecursive(dir) {
   return results;
 }
 
-// Add files to queue if output doesn't exist
+// Add folder to queue
 app.post("/queue/add", (req, res) => {
   const { folder } = req.body;
+  if (!folder || !fs.existsSync(folder)) {
+    return res.status(400).json({ error: "Folder not found" });
+  }
+
   const files = scanFolderRecursive(folder);
-  const added = [];
+  let added = [];
+
   files.forEach(f => {
     const output = f.replace(/\.ts$/, ".jpg");
     if (!fs.existsSync(output) && !queue.find(j => j.input === f)) {
@@ -37,49 +44,62 @@ app.post("/queue/add", (req, res) => {
       added.push(job);
     }
   });
+
+  console.log(`▶ Added ${added.length} jobs to the queue`);
   processQueue();
   res.json({ added });
 });
 
-// Remove job
+// Remove job from queue
 app.delete("/queue/:id", (req, res) => {
   const jobId = parseFloat(req.params.id);
   const index = queue.findIndex(j => j.id === jobId);
   if (index !== -1) {
-    // optionally stop FFmpeg process if running
     queue.splice(index, 1);
+    console.log(`▶ Removed job ${jobId} from queue`);
     res.json({ success: true });
   } else {
     res.status(404).json({ error: "Job not found" });
   }
 });
 
-let processing = false;
+// List queue
+app.get("/queue", (req, res) => {
+  res.json(queue);
+});
+
+// Process queue sequentially
 function processQueue() {
-  if (processing || queue.length === 0) return;
+  if (processing) return;
+  if (queue.length === 0) return;
+
   processing = true;
   const job = queue[0];
-  const args = generateThumbnailArgs({
-    input: job.input,
-    output: job.output,
-  });
+  console.log(`▶ Starting job: ${job.input}`);
+
+  const args = generateThumbnailArgs({ input: job.input, output: job.output });
   const ffmpeg = spawn("ffmpeg", args);
 
   ffmpeg.stderr.on("data", data => {
-    console.log("[FFMPEG STDERR]", data.toString());
+    console.log(`[FFMPEG STDERR] ${data.toString()}`);
   });
 
   ffmpeg.on("close", code => {
     console.log(`▶ Job finished with code ${code}: ${job.input}`);
     queue.shift();
     processing = false;
+    // Process next job
+    if (queue.length > 0) {
+      processQueue();
+    }
+  });
+
+  ffmpeg.on("error", err => {
+    console.error(`▶ FFmpeg error: ${err}`);
+    processing = false;
+    queue.shift();
     processQueue();
   });
 }
-
-// List queue
-app.get("/queue", (req, res) => {
-  res.json(queue);
-});
 
 app.listen(3000, () => console.log("▶ WebUI on :3000"));
