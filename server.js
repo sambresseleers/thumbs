@@ -127,29 +127,71 @@ async function processVideoWithFFmpeg(job) {
   const inputPath = job.filePath;
   const outputPath = getThumbnailPath(inputPath);
   
-  // Double-check thumbnail doesn't exist (in case it was created after queuing)
+  // Double-check thumbnail doesn't exist
   if (await fileExists(outputPath)) {
     console.log(`Thumbnail already exists for ${job.fileName}, skipping`);
     return { skipped: true, outputPath };
   }
   
-  // Simple FFmpeg command - capture thumbnail at 10% of video
-  const ffmpegCmd = `ffmpeg -i "${inputPath}" -ss 10% -vframes 1 -q:v ${config.thumbnailQuality} "${outputPath}"`;
+  // Try multiple time points
+  const timePoints = ['00:00:05', '00:00:10', '00:00:15', '00:00:30'];
   
-  console.log(`Processing ${job.fileName} with command:`, ffmpegCmd);
-  
-  try {
-    const { stdout, stderr } = await execAsync(ffmpegCmd, { timeout: 300000 });
-    
-    if (stderr) {
-      console.log(`FFmpeg output for ${job.fileName}:`, stderr);
+  for (const timePoint of timePoints) {
+    try {
+      const ffmpegCmd = `ffmpeg -i "${inputPath}" -ss ${timePoint} -vframes 1 -q:v ${config.thumbnailQuality} "${outputPath}"`;
+      
+      console.log(`Trying ${job.fileName} at ${timePoint}:`, ffmpegCmd);
+      
+      const { stdout, stderr } = await execAsync(ffmpegCmd, { timeout: 300000 });
+      
+      if (stderr && !stderr.includes('Output file is empty')) {
+        console.log(`FFmpeg output:`, stderr);
+      }
+      
+      // Check if output file was created
+      if (await fileExists(outputPath)) {
+        console.log(`Successfully created thumbnail at ${timePoint}`);
+        return { success: true, outputPath, ffmpegOutput: stderr };
+      }
+      
+      // If file wasn't created, try next time point
+      console.log(`No thumbnail created at ${timePoint}, trying next...`);
+      
+    } catch (error) {
+      console.log(`Failed at ${timePoint}:`, error.message);
+      // Continue to next time point
     }
-    
-    return { success: true, outputPath, ffmpegOutput: stderr };
-  } catch (error) {
-    console.error(`FFmpeg error for ${job.fileName}:`, error.message);
-    throw error;
   }
+  
+  // If all time points fail, try the "thumbnail" filter
+  console.log(`All time points failed, trying thumbnail filter for ${job.fileName}`);
+  try {
+    const altCmd = `ffmpeg -i "${inputPath}" -vf "thumbnail" -vframes 1 -q:v ${config.thumbnailQuality} "${outputPath}"`;
+    const { stdout, stderr } = await execAsync(altCmd, { timeout: 300000 });
+    
+    if (await fileExists(outputPath)) {
+      console.log(`Successfully created thumbnail using filter`);
+      return { success: true, outputPath, ffmpegOutput: stderr };
+    }
+  } catch (altError) {
+    console.error(`Thumbnail filter also failed:`, altError.message);
+  }
+  
+  // Final fallback: Use first frame
+  console.log(`Trying first frame for ${job.fileName}`);
+  try {
+    const firstFrameCmd = `ffmpeg -i "${inputPath}" -vf "select=eq(n\\,0)" -vframes 1 -q:v ${config.thumbnailQuality} "${outputPath}"`;
+    const { stdout, stderr } = await execAsync(firstFrameCmd, { timeout: 300000 });
+    
+    if (await fileExists(outputPath)) {
+      console.log(`Successfully created thumbnail from first frame`);
+      return { success: true, outputPath, ffmpegOutput: stderr };
+    }
+  } catch (firstFrameError) {
+    console.error(`First frame also failed:`, firstFrameError.message);
+  }
+  
+  throw new Error(`Failed to create thumbnail for ${job.fileName} after trying all methods`);
 }
 
 async function processNextJob() {
