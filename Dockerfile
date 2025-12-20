@@ -16,7 +16,6 @@ WORKDIR /app
 COPY backend/package.json ./
 COPY backend ./backend
 COPY public ./public
-COPY package.json ./
 
 RUN npm install --omit=dev
 
