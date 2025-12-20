@@ -1,43 +1,155 @@
-<h1>Video Thumbnailer</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Thumbnailer</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-image"></i> Video Thumbnailer</h1>
+            <div class="subtitle">Generate thumbnails from video files with queue management</div>
+        </header>
 
-<label for="folderPath">Folder path:</label>
-<input type="text" id="folderPath" value="/data" style="width:400px">
-<button onclick="enqueueFolder()">Load & Enqueue Videos</button>
+        <div class="dashboard">
+            <div class="stats-card">
+                <div class="stat">
+                    <div class="stat-value" id="stat-queued">0</div>
+                    <div class="stat-label">Queued</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="stat-processing">0</div>
+                    <div class="stat-label">Processing</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="stat-completed">0</div>
+                    <div class="stat-label">Completed</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="stat-errors">0</div>
+                    <div class="stat-label">Errors</div>
+                </div>
+            </div>
 
-<h2>Job Queue:</h2>
-<div id="jobs"></div>
+            <div class="controls">
+                <button id="scan-folder-btn" class="btn btn-primary">
+                    <i class="fas fa-folder-open"></i> Scan Folder
+                </button>
+                <button id="clear-queue-btn" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Clear Queue
+                </button>
+                <button id="refresh-btn" class="btn btn-secondary">
+                    <i class="fas fa-sync"></i> Refresh
+                </button>
+            </div>
+        </div>
 
-<script>
-async function enqueueFolder() {
-  const folder = document.getElementById("folderPath").value;
-  const res = await fetch(`/api/list?dir=${encodeURIComponent(folder)}`);
-  const files = await res.json();
+        <div class="main-content">
+            <div class="file-browser">
+                <h2><i class="fas fa-folder-tree"></i> File Browser</h2>
+                <div class="browser-controls">
+                    <button id="browser-back" class="btn btn-small">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </button>
+                    <div class="current-path" id="current-path">/</div>
+                    <button id="add-folder-btn" class="btn btn-small btn-success">
+                        <i class="fas fa-plus"></i> Add Folder to Queue
+                    </button>
+                </div>
+                <div class="file-list" id="file-list">
+                    <div class="empty-state">
+                        <i class="fas fa-folder-open fa-3x"></i>
+                        <p>Select a folder to browse files</p>
+                    </div>
+                </div>
+            </div>
 
-  for (const f of files) {
-    await fetch("/api/enqueue", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ file: f })
-    });
-  }
-}
+            <div class="queue-section">
+                <h2><i class="fas fa-tasks"></i> Processing Queue</h2>
+                <div class="queue-controls">
+                    <div class="processing-status">
+                        Status: <span id="processing-status">Idle</span>
+                    </div>
+                </div>
+                <div class="queue-list" id="queue-list">
+                    <div class="empty-state">
+                        <i class="fas fa-inbox fa-3x"></i>
+                        <p>No jobs in queue</p>
+                        <p class="subtext">Add folders using the file browser</p>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-async function refreshJobs() {
-  const res = await fetch("/api/jobs");
-  const jobs = await res.json();
-  const jobsDiv = document.getElementById("jobs");
-  jobsDiv.innerHTML = "";
+        <div class="settings-panel">
+            <h2><i class="fas fa-cog"></i> Settings</h2>
+            <div class="settings-grid">
+                <div class="setting">
+                    <label for="max-jobs">Max Concurrent Jobs:</label>
+                    <select id="max-jobs" class="form-control">
+                        <option value="1">1 (Sequential)</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                    </select>
+                </div>
+                <div class="setting">
+                    <label for="quality">Thumbnail Quality:</label>
+                    <input type="range" id="quality" min="1" max="100" value="85" class="form-control">
+                    <span id="quality-value">85</span>
+                </div>
+                <div class="setting">
+                    <label>
+                        <input type="checkbox" id="text-overlay">
+                        Enable Text Overlay
+                    </label>
+                </div>
+            </div>
+        </div>
 
-  jobs.forEach(j => {
-    jobsDiv.innerHTML += `
-      <div style="margin-bottom:10px;">
-        ${j.input} - ${j.status}
-        <progress value="${j.progress}" max="100"></progress>
-        ${j.status === "done" ? `<br><img src="${j.output.replace("/data","")}" width="300">` : ""}
-      </div>
-    `;
-  });
-}
+        <div class="system-info">
+            <div class="info-item">
+                <i class="fas fa-server"></i>
+                <span>FFmpeg: <span id="ffmpeg-version">Checking...</span></span>
+            </div>
+            <div class="info-item">
+                <i class="fas fa-hdd"></i>
+                <span>Queue Persistence: <span id="persistence-status">Active</span></span>
+            </div>
+            <div class="info-item">
+                <i class="fas fa-docker"></i>
+                <span>Docker: <span id="docker-status">Running</span></span>
+            </div>
+        </div>
+    </div>
 
-setInterval(refreshJobs, 1000);
-</script>
+    <!-- Modal for folder selection -->
+    <div id="folder-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Select Folder</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="path-input">
+                    <input type="text" id="folder-path" placeholder="Enter folder path or browse..." class="form-control">
+                    <button id="browse-btn" class="btn btn-secondary">
+                        <i class="fas fa-search"></i> Browse
+                    </button>
+                </div>
+                <div class="modal-actions">
+                    <button id="confirm-scan" class="btn btn-primary">
+                        <i class="fas fa-search"></i> Scan Folder
+                    </button>
+                    <button class="btn btn-secondary close-modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+{
+  "name": "video-thumbnailer",
+  "version": "1.0.0",
+  "description": "Web-based video thumbnail generator with queue management",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "docker:build": "docker build -t video-thumbnailer .",
+    "docker:run": "docker run -p 3000:3000 -v $(pwd)/data:/app/data -v $(pwd)/logs:/app/logs video-thumbnailer",
+    "docker:compose": "docker-compose up",
+    "docker:compose-build": "docker-compose up --build",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "fs-extra": "^11.1.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "eslint": "^8.53.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "thumbnail",
+    "ffmpeg",
+    "video",
+    "queue",
+    "docker"
+  ],
+  "author": "Video Thumbnailer Project",
+  "license": "MIT"
+}

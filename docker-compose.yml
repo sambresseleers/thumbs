@@ -1,20 +1,36 @@
-version: "3.9"
+version: '3.8'
 
 services:
-  thumbnailer:
-    image: yourdockerhub/video-thumbnailer:latest
+  video-thumbnailer:
+    image: sambresseleers/video-thumbnailer:latest
     container_name: video-thumbnailer
+    restart: unless-stopped
     ports:
       - "3000:3000"
-    devices:
-      - /dev/dri:/dev/dri
     volumes:
-      - ./data:/data
+      # Mount host video directories
+      - ./data:/app/data:rw
+      - ./logs:/app/logs:rw
+      # Mount your video directories (adjust paths as needed)
+      - /path/to/your/videos:/videos:ro
+      # Mount output directory (optional)
+      - /path/to/output:/output:rw
     environment:
-      COLS: 11
-      ROWS: 10
-      WIDTH: 3840
-      HEIGHT: 2160
-      FONT_SIZE: 36
-      BORDER: 6
-    restart: unless-stopped
+      - NODE_ENV=production
+      - PORT=3000
+      - MAX_CONCURRENT_JOBS=1
+      - THUMBNAIL_QUALITY=85
+      - OUTPUT_FORMAT=jpg
+    # For better performance on multi-core systems
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    # Optional: Set container to always restart unless stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "const http = require('http'); const req = http.get('http://localhost:3000/api/system', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
