@@ -1,0 +1,20 @@
+version: "3.9"
+
+services:
+  thumbnailer:
+    image: yourdockerhub/video-thumbnailer:latest
+    container_name: video-thumbnailer
+    ports:
+      - "3000:3000"
+    devices:
+      - /dev/dri:/dev/dri
+    volumes:
+      - ./data:/data
+    environment:
+      COLS: 11
+      ROWS: 10
+      WIDTH: 3840
+      HEIGHT: 2160
+      FONT_SIZE: 36
+      BORDER: 6
+    restart: unless-stopped
