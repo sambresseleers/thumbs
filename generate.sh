@@ -23,27 +23,26 @@ echo "Width     : ${WIDTH}px"
 echo "Quality   : ${QUALITY}"
 echo "========================="
 
-find "$INPUT_DIR" -type f -regextype posix-extended -iregex ".*\.($EXTENSIONS)$" | while read -r VIDEO; do
+find "$INPUT_DIR" -type f -regextype posix-extended -iregex ".*\.($EXTENSIONS)$" -print0 |
+while IFS= read -r -d '' VIDEO; do
     DIR="$(dirname "$VIDEO")"
     BASE="$(basename "$VIDEO")"
     NAME="${BASE%.*}"
     OUT_FILE="$DIR/$NAME.jpg"
 
     if [[ -f "$OUT_FILE" ]] && [[ "$FORCE_OVERWRITE" != "true" ]]; then
-    echo "[SKIP] $VIDEO (thumbnail exists)"
-    continue
+        echo "[SKIP] $VIDEO (thumbnail exists)"
+        continue
     fi
 
-    if [[ -f "$OUT_FILE" ]] && [[ "$FORCE_OVERWRITE" == "true" ]]; then
-        echo "[OVERWRITE] $OUT_FILE"
-    fi
+    [[ -f "$OUT_FILE" ]] && echo "[OVERWRITE] $OUT_FILE"
 
     echo "[PROCESS] $VIDEO"
 
     DURATION=$(ffprobe -v error \
-        -select_streams v:0 \
-        -show_entries format=duration \
-        -of csv=p=0 "$VIDEO" || true)
+      -show_entries format=duration \
+      -of default=noprint_wrappers=1:nokey=1 \
+      "$VIDEO")
 
     if [[ -z "$DURATION" ]]; then
         echo "[ERROR] Could not read duration"
@@ -52,23 +51,25 @@ find "$INPUT_DIR" -type f -regextype posix-extended -iregex ".*\.($EXTENSIONS)$"
 
     INTERVAL=$(echo "$DURATION / ($THUMBS + 1)" | bc -l)
 
+    FILTER="
+fps=1/${INTERVAL},
+scale=${WIDTH}/${COLS}:-1,
+drawtext=fontfile=${FONT}:
+text='%{pts\\:hms}':
+x=10:y=10:
+fontsize=${FONT_SIZE}:
+fontcolor=white:
+box=1:
+boxcolor=black@0.6,
+tile=${COLS}x${ROWS}:padding=10:margin=10
+"
+
     ffmpeg -hide_banner -loglevel error \
-        -i "$VIDEO" \
-        -vf "
-        fps=1/${INTERVAL},
-        scale=${WIDTH}/${COLS}:-1,
-        drawtext=fontfile=${FONT}:
-                 text='%{pts\\:hms}':
-                 x=10:y=10:
-                 fontsize=${FONT_SIZE}:
-                 fontcolor=white:
-                 box=1:
-                 boxcolor=black@0.6,
-        tile=${COLS}x${ROWS}:padding=10:margin=10
-        " \
-        -frames:v 1 \
-        -q:v "$QUALITY" \
-        "$OUT_FILE"
+      -i "$VIDEO" \
+      -vf "$FILTER" \
+      -frames:v 1 \
+      -q:v "$QUALITY" \
+      "$OUT_FILE"
 
     echo "[DONE] $OUT_FILE"
 done
