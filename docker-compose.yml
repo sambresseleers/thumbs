@@ -3,13 +3,16 @@ services:
     image: sambresseleers/video-thumbnailer:latest
     container_name: video-thumbnailer
     environment:
-      INPUT_DIR: /media
-      ROWS: 4
-      COLS: 5
-      WIDTH: 1920
-      QUALITY: 2
-      FONT_SIZE: 18
-      EXTENSIONS: "mp4|mkv|avi|mov|ts"
+      - PUID=100
+      - PGID=1000
+      - INPUT_DIR=/media
+      - ROWS=4
+      - COLS=5
+      - WIDTH=1920
+      - QUALITY=2
+      - FONT_SIZE=18
+      - EXTENSIONS=mp4|mkv|avi|mov|ts
+      - FORCE_OVERWRITE=false
     volumes:
       - /mnt/user/media:/media
     restart: "no"
