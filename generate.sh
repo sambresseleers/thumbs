@@ -2,6 +2,7 @@
 set -euo pipefail
 
 INPUT_DIR="${INPUT_DIR:-/media}"
+FORCE_OVERWRITE="${FORCE_OVERWRITE:-false}"
 
 ROWS="${ROWS:-4}"
 COLS="${COLS:-5}"
@@ -28,9 +29,13 @@ find "$INPUT_DIR" -type f -regextype posix-extended -iregex ".*\.($EXTENSIONS)$"
     NAME="${BASE%.*}"
     OUT_FILE="$DIR/$NAME.jpg"
 
-    if [[ -f "$OUT_FILE" ]]; then
-        echo "[SKIP] $VIDEO"
-        continue
+    if [[ -f "$OUT_FILE" ]] && [[ "$FORCE_OVERWRITE" != "true" ]]; then
+    echo "[SKIP] $VIDEO (thumbnail exists)"
+    continue
+    fi
+
+    if [[ -f "$OUT_FILE" ]] && [[ "$FORCE_OVERWRITE" == "true" ]]; then
+        echo "[OVERWRITE] $OUT_FILE"
     fi
 
     echo "[PROCESS] $VIDEO"
