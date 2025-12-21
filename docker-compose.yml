@@ -1,34 +1,15 @@
-version: '3.8'
-
 services:
   video-thumbnailer:
     image: sambresseleers/video-thumbnailer:latest
     container_name: video-thumbnailer
-    restart: unless-stopped
-    ports:
-      - "9999:3000"
-    volumes:
-      # Mount host video directories
-      - ./data:/app/data:rw
-      - ./logs:/app/logs:rw
-      # Mount your video directories (adjust paths as needed)
-      - /mnt/user/media/ctbrec/proccessed:/videos:ro
     environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - MAX_CONCURRENT_JOBS=1
-      - THUMBNAIL_QUALITY=85
-      - OUTPUT_FORMAT=jpg
-    # For better performance on multi-core systems
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-    # Optional: Set container to always restart unless stopped
-    healthcheck:
-      test: ["CMD", "node", "-e", "const http = require('http'); const req = http.get('http://localhost:3000/api/system', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      INPUT_DIR: /media
+      ROWS: 4
+      COLS: 5
+      WIDTH: 1920
+      QUALITY: 2
+      FONT_SIZE: 18
+      EXTENSIONS: "mp4|mkv|avi|mov|ts"
+    volumes:
+      - /mnt/user/media:/media
+    restart: "no"
