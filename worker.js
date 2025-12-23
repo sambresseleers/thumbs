@@ -34,7 +34,7 @@ const args = [
   "-loglevel", "error",
   "-i", input,
   "-vf",
-  `fps=1/5,scale=${Math.floor(width/cols)}:-1,tile=${cols}x${rows}:padding=5:margin=5,drawtext=text='%{pts\\:hms}':x=5:y=5:fontsize=18:fontcolor=white`,
+  `fps=1/5,scale=${Math.floor(width/cols)}:-1,tile=${cols}x${rows}:padding=5:margin=5,drawtext=text='%{pts\\:hms}':x=5:y=5:fontsize=18:fontcolor=white:fontfile=/usr/share/fonts/TTF/DejaVuSans.ttf,
   "-frames:v", "1",
   "-q:v", quality,
   output

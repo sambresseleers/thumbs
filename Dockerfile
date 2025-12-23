@@ -1,6 +1,8 @@
 FROM node:20-alpine
 
 RUN apk add --no-cache ffmpeg bash coreutils findutils bc
+RUN apk add --no-cache fontconfig ttf-dejavu
+
 
 WORKDIR /app
 
