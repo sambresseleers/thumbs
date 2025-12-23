@@ -1,14 +1,14 @@
-FROM linuxserver/ffmpeg:latest
+FROM node:20-alpine
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        bash \
-        bc \
-        findutils \
-        fonts-dejavu-core && \
-    rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache ffmpeg bash coreutils findutils bc
 
-COPY generate.sh /usr/local/bin/generate.sh
-RUN chmod +x /usr/local/bin/generate.sh
+WORKDIR /app
 
-ENTRYPOINT ["/usr/local/bin/generate.sh"]
+COPY server.js worker.js ./
+COPY public ./public
+
+RUN npm init -y && npm install express ws
+
+EXPOSE 3000
+
+CMD ["node", "server.js"]
