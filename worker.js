@@ -35,7 +35,7 @@ if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 console.log(`[THUMB] generating ${output}`);
 
 // ---------- Build ffmpeg filter ----------
-const ffmpegFilter = `fps=1/5,scale=${Math.floor(width/cols)}:-1,tile=${cols}x${rows}:padding=5:margin=5,drawtext=text='%{pts\\:hms}':x=5:y=5:fontsize=${fontSize}:fontcolor=white:fontfile=/usr/share/fonts/TTF/DejaVuSans.ttf`;
+const ffmpegFilter = `fps=1/5,scale=${Math.floor(width/cols)}:-1,tile=${cols}x${rows}:padding=5:margin=5,drawtext=text='%{pts\\:hms}':x=5:y=5:fontsize=${fontSize}:fontcolor=white:fontfile=/usr/share/fonts/dejavu/DejaVuSans.ttf`;
 
 // ---------- Run ffmpeg ----------
 const args = [
