@@ -1,29 +1,37 @@
-const { spawn } = require("child_process");
+const { spawnSync } = require("child_process");
 const path = require("path");
+const fs = require("fs");
 
-const video = process.argv[2];
-const dir = path.dirname(video);
-const name = path.basename(video, path.extname(video));
-const out = path.join(dir, `${name}.jpg`);
+const input = process.argv[2];
+if (!input) process.exit(1);
 
-const rows = process.env.ROWS || 4;
-const cols = process.env.COLS || 5;
-const width = process.env.WIDTH || 1920;
+const dir = path.dirname(input);
+const base = path.basename(input, path.extname(input));
+const output = path.join(dir, `${base}.jpg`);
 
-const ffmpeg = spawn("ffmpeg", [
-  "-y",
-  "-nostdin",
-  "-i", video,
+if (fs.existsSync(output)) {
+  console.log(`[SKIP] ${output} already exists`);
+  process.exit(0);
+}
+
+console.log(`[THUMB] generating for ${input}`);
+
+const args = [
+  "-hide_banner",
+  "-loglevel", "error",
+  "-i", input,
   "-vf",
-  `fps=1/(${rows * cols + 1}),
-   scale=${width}/${cols}:-1,
-   drawtext=text='%{pts\\:hms}':x=10:y=10:fontsize=18:box=1,
-   tile=${cols}x${rows}:padding=10:margin=10`,
-  "-frames:v", "1",
-  out
-]);
+  "select=not(mod(n\\,60)),drawtext=text='%{pts\\:hms}':x=5:y=5:fontsize=18:fontcolor=white",
+  "-frames:v", "12",
+  "-q:v", "3",
+  output
+];
 
-ffmpeg.stdout.pipe(process.stdout);
-ffmpeg.stderr.pipe(process.stderr);
+const ff = spawnSync("ffmpeg", args);
 
-ffmpeg.on("exit", code => process.exit(code));
+if (ff.error) {
+  console.error(ff.error);
+  process.exit(1);
+}
+
+console.log(`[DONE] ${output}`);

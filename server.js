@@ -5,8 +5,6 @@ const { spawn } = require("child_process");
 const WebSocket = require("ws");
 
 const app = express();
-
-/* 🔑 REQUIRED */
 app.use(express.json());
 app.use(express.static("public"));
 
@@ -27,16 +25,10 @@ function broadcast(msg) {
 }
 
 function scanFolder(dir, results = []) {
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-
-    if (entry.isDirectory()) {
-      scanFolder(fullPath, results);
-    } else if (/\.(mp4|mkv|avi|mov|ts)$/i.test(entry.name)) {
-      results.push(fullPath);
-    }
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) scanFolder(full, results);
+    else if (/\.(mp4|mkv|avi|mov|ts)$/i.test(entry.name)) results.push(full);
   }
   return results;
 }
@@ -47,84 +39,69 @@ function processQueue() {
   processing = true;
   const file = queue.shift();
 
+  console.log("[WORKER START]", file);
   broadcast({ type: "start", file });
 
-  const worker = spawn("node", ["worker.js", file], {
-    stdio: ["ignore", "pipe", "pipe"]
-  });
+  const worker = spawn("node", ["/app/worker.js", file]);
 
   worker.stdout.on("data", d =>
     broadcast({ type: "log", msg: d.toString() })
   );
 
-  worker.stderr.on("data", d =>
-    broadcast({ type: "error", msg: d.toString() })
-  );
+  worker.stderr.on("data", d => {
+    console.error(d.toString());
+    broadcast({ type: "error", msg: d.toString() });
+  });
 
-  worker.on("exit", () => {
+  worker.on("exit", code => {
+    console.log("[WORKER DONE]", file, "exit:", code);
     broadcast({ type: "done", file });
+
     processing = false;
-    processQueue();
+    setImmediate(processQueue);
   });
 }
 
 /* ---------- API ---------- */
 
-app.post("/enqueue", (req, res) => {
-  console.log("[ENQUEUE FILE]", req.body);
-
-  if (!req.body?.path) {
-    return res.status(400).json({ error: "Missing path" });
-  }
-
-  queue.push(req.body.path);
-  broadcast({ type: "queue", queue });
-  processQueue();
-
-  res.json({ ok: true });
-});
-
 app.post("/enqueue-folder", (req, res) => {
-  console.log("[ENQUEUE FOLDER]", req.body);
-
   const folder = req.body?.path;
 
-  if (!folder) {
-    return res.status(400).json({ error: "Missing folder path" });
+  if (!folder || !fs.existsSync(folder)) {
+    return res.status(400).json({ error: "Invalid folder" });
   }
 
-  if (!folder.startsWith("/media")) {
-    return res.status(400).json({ error: "Folder must be inside /media" });
-  }
+  const files = scanFolder(folder);
+  files.forEach(f => queue.push(f));
 
-  if (!fs.existsSync(folder)) {
-    return res.status(400).json({ error: "Folder does not exist" });
-  }
+  console.log(`[QUEUE] ${files.length} files added`);
+  broadcast({ type: "queue", queue });
 
-  try {
-    const files = scanFolder(folder);
-    files.forEach(f => queue.push(f));
+  processQueue();
+  res.json({ added: files.length });
+});
 
-    console.log(`[SCAN] added ${files.length} files`);
+app.post("/pause", (_, res) => {
+  paused = true;
+  console.log("[QUEUE] paused");
+  res.json({ paused });
+});
 
-    broadcast({ type: "queue", queue });
-    processQueue();
-
-    res.json({ added: files.length });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
-  }
+app.post("/resume", (_, res) => {
+  paused = false;
+  console.log("[QUEUE] resumed");
+  processQueue();
+  res.json({ paused });
 });
 
 /* ---------- server ---------- */
 
-const server = app.listen(3000, () => {
-  console.log("UI running on port 3000");
-});
+const server = app.listen(3000, () =>
+  console.log("Thumbnailer UI on :3000")
+);
 
 server.on("upgrade", (req, socket, head) => {
-  wss.handleUpgrade(req, socket, head, ws => {
-    wss.emit("connection", ws);
-  });
+  wss.handleUpgrade(req, socket, head, ws =>
+    wss.emit("connection", ws)
+  );
 });
