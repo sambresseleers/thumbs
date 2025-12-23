@@ -2,6 +2,7 @@ const express = require("express");
 const { spawn } = require("child_process");
 const WebSocket = require("ws");
 const path = require("path");
+const fs = require("fs");
 
 const app = express();
 app.use(express.json());
@@ -64,4 +65,39 @@ server.on("upgrade", (req, socket, head) => {
   wss.handleUpgrade(req, socket, head, ws => {
     wss.emit("connection", ws);
   });
+});
+
+function scanFolder(dir, results = []) {
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const fullPath = `${dir}/${entry.name}`;
+
+    if (entry.isDirectory()) {
+      scanFolder(fullPath, results);
+    } else if (/\.(mp4|mkv|avi|mov|ts)$/i.test(entry.name)) {
+      results.push(fullPath);
+    }
+  }
+  return results;
+}
+
+app.post("/enqueue-folder", (req, res) => {
+  const folder = req.body.path;
+
+  if (!folder.startsWith("/media")) {
+    return res.status(400).json({ error: "Path must be inside /media" });
+  }
+
+  try {
+    const files = scanFolder(folder);
+    files.forEach(f => queue.push(f));
+
+    broadcast({ type: "queue", queue });
+    processQueue();
+
+    res.json({ added: files.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });

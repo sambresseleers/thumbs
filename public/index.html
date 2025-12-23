@@ -1,15 +1,33 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Thumbnail Queue</title>
+  <title>Video Thumbnailer</title>
+  <style>
+    body { font-family: sans-serif; }
+    input { width: 500px; }
+    button { margin: 5px; }
+    pre { height: 300px; overflow: auto; background: #111; color: #0f0; padding: 10px; }
+  </style>
 </head>
 <body>
-  <h2>Thumbnail Generator</h2>
-  <input id="path" placeholder="/media/file.ts">
-  <button onclick="enqueue()">Add</button>
-  <button onclick="pause()">Pause after current</button>
-  <button onclick="resume()">Resume</button>
-  <pre id="log"></pre>
+
+<h2>Video Thumbnail Generator</h2>
+
+<h3>Single file</h3>
+<input id="filePath" placeholder="/media/path/file.ts">
+<button onclick="enqueueFile()">Add file</button>
+
+<h3>Folder scan (recursive)</h3>
+<input id="folderPath" placeholder="/media/path/folder">
+<button onclick="enqueueFolder()">Scan & enqueue</button>
+
+<h3>Controls</h3>
+<button onclick="pause()">Pause after current</button>
+<button onclick="resume()">Resume</button>
+
+<h3>Logs</h3>
+<pre id="log"></pre>
+
 <script src="app.js"></script>
 </body>
 </html>
