@@ -44,13 +44,16 @@ function processQueue() {
 
   const worker = spawn("node", ["/app/worker.js", file]);
 
-  worker.stdout.on("data", d =>
-    broadcast({ type: "log", msg: d.toString() })
-  );
+  worker.stdout.on("data", d => {
+  const msg = d.toString();
+  console.log(msg);
+  broadcast({ type: "log", msg });
+  });
 
   worker.stderr.on("data", d => {
-    console.error(d.toString());
-    broadcast({ type: "error", msg: d.toString() });
+    const msg = d.toString();
+    console.error(msg);
+    broadcast({ type: "error", msg });
   });
 
   worker.on("exit", code => {

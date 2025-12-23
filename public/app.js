@@ -1,41 +1,65 @@
-const log = document.getElementById("log");
-const ws = new WebSocket(`ws://${location.host}`);
+const logBox = document.getElementById("log");
+const queueBox = document.getElementById("queue");
 
-ws.onmessage = e => {
-  const m = JSON.parse(e.data);
-  log.textContent += JSON.stringify(m) + "\n";
-  log.scrollTop = log.scrollHeight;
+function log(msg) {
+  logBox.value += msg + "\n";
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+/* ---------- WebSocket ---------- */
+
+const protocol = location.protocol === "https:" ? "wss" : "ws";
+const ws = new WebSocket(`${protocol}://${location.host}`);
+
+ws.onopen = () => log("[WS] connected");
+ws.onerror = () => log("[WS] error");
+ws.onclose = () => log("[WS] disconnected");
+
+ws.onmessage = ev => {
+  const data = JSON.parse(ev.data);
+
+  if (data.type === "log") {
+    log(data.msg.trim());
+  }
+
+  if (data.type === "start") {
+    log(`[START] ${data.file}`);
+  }
+
+  if (data.type === "done") {
+    log(`[DONE] ${data.file}`);
+  }
+
+  if (data.type === "error") {
+    log(`[ERROR] ${data.msg}`);
+  }
+
+  if (data.type === "queue") {
+    queueBox.textContent = data.queue.length + " files queued";
+  }
 };
 
-function enqueueFile() {
-  fetch("/enqueue", {
+/* ---------- UI actions ---------- */
+
+async function scanFolder() {
+  const path = document.getElementById("folder").value;
+
+  const res = await fetch("/enqueue-folder", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: document.getElementById("filePath").value })
+    body: JSON.stringify({ path })
   });
+
+  const json = await res.json();
+  log(`[SCAN] Added ${json.added} files`);
 }
 
-function enqueueFolder() {
-  fetch("/enqueue-folder", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      path: document.getElementById("folderPath").value
-    })
-  })
-    .then(r => r.json())
-    .then(d => {
-      log.textContent += `Added ${d.added} files\n`;
-    })
-    .catch(err => {
-      log.textContent += `Error: ${err}\n`;
-    });
+async function pauseQueue() {
+  await fetch("/pause", { method: "POST" });
+  log("[QUEUE] paused (after current)");
 }
 
-function pause() {
-  fetch("/pause", { method: "POST" });
-}
-
-function resume() {
-  fetch("/resume", { method: "POST" });
+async function resumeQueue() {
+  await fetch("/resume", { method: "POST" });
+  log("[QUEUE] resumed");
 }

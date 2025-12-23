@@ -1,32 +1,26 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="utf-8" />
   <title>Video Thumbnailer</title>
   <style>
-    body { font-family: sans-serif; }
-    input { width: 500px; }
-    button { margin: 5px; }
-    pre { height: 300px; overflow: auto; background: #111; color: #0f0; padding: 10px; }
+    body { font-family: sans-serif; background:#111; color:#eee; }
+    input, button { padding:6px; margin:4px; }
+    textarea { width:100%; height:300px; background:#000; color:#0f0; }
   </style>
 </head>
 <body>
 
-<h2>Video Thumbnail Generator</h2>
+<h2>Video Thumbnailer</h2>
 
-<h3>Single file</h3>
-<input id="filePath" placeholder="/media/path/file.ts">
-<button onclick="enqueueFile()">Add file</button>
+<input id="folder" placeholder="/media/processed" size="40">
+<button onclick="scanFolder()">Scan & Enqueue</button>
+<button onclick="pauseQueue()">Pause</button>
+<button onclick="resumeQueue()">Resume</button>
 
-<h3>Folder scan (recursive)</h3>
-<input id="folderPath" placeholder="/media/path/folder">
-<button onclick="enqueueFolder()">Scan & enqueue</button>
+<div id="queue">0 files queued</div>
 
-<h3>Controls</h3>
-<button onclick="pause()">Pause after current</button>
-<button onclick="resume()">Resume</button>
-
-<h3>Logs</h3>
-<pre id="log"></pre>
+<textarea id="log" readonly></textarea>
 
 <script src="app.js"></script>
 </body>
