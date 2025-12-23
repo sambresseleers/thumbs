@@ -25,10 +25,13 @@ function broadcast(msg) {
 }
 
 function scanFolder(dir, results = []) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) scanFolder(full, results);
-    else if (/\.(mp4|mkv|avi|mov|ts)$/i.test(entry.name)) results.push(full);
+  const regex = new RegExp(`\\.(${extensions.join("|")})$`, "i");
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) scanFolder(fullPath, results);
+    else if (regex.test(entry.name)) results.push(fullPath);
   }
   return results;
 }
