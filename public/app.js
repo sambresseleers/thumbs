@@ -19,10 +19,17 @@ function enqueueFolder() {
   fetch("/enqueue-folder", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: document.getElementById("folderPath").value })
+    body: JSON.stringify({
+      path: document.getElementById("folderPath").value
+    })
   })
-  .then(r => r.json())
-  .then(d => log.textContent += `Added ${d.added} files\n`);
+    .then(r => r.json())
+    .then(d => {
+      log.textContent += `Added ${d.added} files\n`;
+    })
+    .catch(err => {
+      log.textContent += `Error: ${err}\n`;
+    });
 }
 
 function pause() {
